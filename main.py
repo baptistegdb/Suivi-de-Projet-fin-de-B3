@@ -31,9 +31,14 @@ class RobotSimulator:
         # Gravité
         self.g = 9.81  # Accélération due à la gravité (m/s^2)
 
+        # Inertie en x
+        self.inertia_x = 0.1  # Valeur par défaut de l'inertie en x
+
+        # Flag pour suivre l'état de la simulation
+        self.running = False
+
         # Création des widgets
         self.create_widgets()
-        self.update_robot()
 
     def create_widgets(self):
         # Frame pour les paramètres
@@ -65,10 +70,30 @@ class RobotSimulator:
         self.length_entry = tk.Entry(params_frame, textvariable=self.length)
         self.length_entry.grid(row=3, column=1, pady=5)
 
-        update_button = tk.Button(params_frame, text="Mettre à jour", command=self.update_robot)
-        update_button.grid(row=4, columnspan=2, pady=10)
+        inertia_label = tk.Label(params_frame, text="Inertie en x:")
+        inertia_label.grid(row=4, column=0, pady=5)
+        
+        self.inertia_entry = tk.Entry(params_frame, textvariable=tk.DoubleVar(value=self.inertia_x))
+        self.inertia_entry.grid(row=4, column=1, pady=5)
 
-    def update_robot(self, event=None):
+        self.update_button = tk.Button(params_frame, text="Mettre à jour", command=self.start_simulation)
+        self.update_button.grid(row=5, columnspan=2, pady=10)
+
+        self.stop_button = tk.Button(params_frame, text="Arrêter", command=self.stop_simulation)
+        self.stop_button.grid(row=6, columnspan=2, pady=10)
+
+    def start_simulation(self):
+        if not self.running:
+            self.running = True
+            self.update_robot()
+
+    def stop_simulation(self):
+        self.running = False
+
+    def update_robot(self):
+        if not self.running:
+            return
+
         self.canvas.delete("all")
         x = self.x_position.get()
         y = 500  # Position fixe en y pour la base du robot
@@ -96,19 +121,31 @@ class RobotSimulator:
         # Calcul de l'accélération angulaire (α) due à la gravité
         alpha = torque_gravity / I
 
+        # Déterminer la direction de la chute
+        if self.angle.get() < 90:
+            alpha = -abs(alpha)  # Tendre vers 0°
+        elif self.angle.get() > 90:
+            alpha = abs(alpha)  # Tendre vers 180°
+        else:
+            if self.inertia_x > 0:
+                alpha = abs(alpha)  # Tendre vers 180°
+            else:
+                alpha = -abs(alpha)  # Tendre vers 0°
+
         # Mise à jour de l'angle du robot
         omega = alpha * self.dt  # Vitesse angulaire
-        new_angle = math.degrees(angle) + math.degrees(omega * self.dt)
+        new_angle = self.angle.get() + math.degrees(omega * self.dt)
 
         self.angle.set(new_angle)
 
         # Affichage des valeurs dans la console
-        print("Temps:", self.time)
-        print("Moment d'inertie (I) :", I)
-        print("Force de gravité (F_gravity) :", F_gravity)
-        print("Couple dû à la gravité (torque_gravity) :", torque_gravity)
-        print("Accélération angulaire (α) :", alpha)
-        print("Nouvel angle (°) :", new_angle)
+        print(f"--- Temps: {self.time} ---")
+        print(f"--- Angle: {self.angle.get()} ---")
+        print(f"--- Force de gravité: {F_gravity} ---")
+        print(f"--- Couple dû à la gravité: {torque_gravity} ---")
+        print(f"--- Accélération angulaire: {alpha} ---")
+        print(f"--- Nouvel angle: {new_angle} ---")
+        print(f"--- Moment d'inertie :, {I} ---\n")
 
         # Mise à jour du temps
         self.time += self.dt
