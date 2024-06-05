@@ -34,6 +34,18 @@ class RobotSimulator:
         # Inertie en x
         self.inertia_x = 0.1  # Valeur par défaut de l'inertie en x
 
+        # PID constants
+        self.Kp = 1.0
+        self.Ki = 0.1
+        self.Kd = 0.05
+
+        # PID variables
+        self.previous_error = 0
+        self.integral = 0
+
+        # Constante du moteur
+        self.k_v = 1.0
+
         # Flag pour suivre l'état de la simulation
         self.running = False
 
@@ -113,39 +125,41 @@ class RobotSimulator:
         l = self.length.get()
         I = (1/12) * m * (h**2 + l**2)
 
-        # Calcul de la force de gravité agissant sur le centre de masse
-        F_gravity = m * self.g
+        # PID controller
+        error = 90 - self.angle.get()
+        self.integral += error * self.dt
+        derivative = (error - self.previous_error) / self.dt
+        F = self.Kp * error + self.Ki * self.integral + self.Kd * derivative
+        self.previous_error = error
+
+        # Calcul de l'accélération angulaire (α) due à la force PID
         L = length / 2  # Distance du pivot au centre de masse
-        torque_gravity = F_gravity * L * math.sin(angle)  # Couple dû à la gravité
-
-        # Calcul de l'accélération angulaire (α) due à la gravité
-        alpha = torque_gravity / I
-
-        # Déterminer la direction de la chute
-        if self.angle.get() < 90:
-            alpha = -abs(alpha)  # Tendre vers 0°
-        elif self.angle.get() > 90:
-            alpha = abs(alpha)  # Tendre vers 180°
-        else:
-            if self.inertia_x > 0:
-                alpha = abs(alpha)  # Tendre vers 180°
-            else:
-                alpha = -abs(alpha)  # Tendre vers 0°
+        alpha = (F * L) / I
 
         # Mise à jour de l'angle du robot
         omega = alpha * self.dt  # Vitesse angulaire
         new_angle = self.angle.get() + math.degrees(omega * self.dt)
 
+        # Calcul de la tension des moteurs (V)
+        voltage = (1 / self.k_v) * omega
+
+        # Intégrer la commande PID pour ajuster l'angle du robot
         self.angle.set(new_angle)
 
         # Affichage des valeurs dans la console
         print(f"--- Temps: {self.time} ---")
         print(f"--- Angle: {self.angle.get()} ---")
-        print(f"--- Force de gravité: {F_gravity} ---")
-        print(f"--- Couple dû à la gravité: {torque_gravity} ---")
+        print(f"--- Force PID: {F} ---")
+        print(f"--- Proportionnelle (P): {self.Kp * error} ---")
+        print(f"--- Intégrale (I): {self.Ki * self.integral} ---")
+        print(f"--- Dérivée (D): {self.Kd * derivative} ---")
         print(f"--- Accélération angulaire: {alpha} ---")
         print(f"--- Nouvel angle: {new_angle} ---")
-        print(f"--- Moment d'inertie :, {I} ---\n")
+        print(f"--- Tension des moteurs: {voltage} ---")
+        print(f"--- Moment d'inertie : {I} ---")
+        print(f"--- Inertie en x: {self.inertia_x} ---")
+        print(f"--- Intégrale: {self.integral} ---")
+        print(f"--- Dérivée: {derivative} ---\n")
 
         # Mise à jour du temps
         self.time += self.dt
