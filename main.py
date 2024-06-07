@@ -19,11 +19,11 @@ class RobotSimulator:
         self.x_position.set(760)  # Position initiale au centre de l'écran
 
         self.mass = tk.DoubleVar()
-        self.mass.set(0.2)  # Masse par défaut # 10.0 puis 2.0
+        self.mass.set(0.2)  # Masse par défaut
         self.height = tk.DoubleVar()
-        self.height.set(0.1)  # Hauteur par défaut # 10.0 puis 1.0
+        self.height.set(0.01)  # Hauteur par défaut
         self.length = tk.DoubleVar()
-        self.length.set(0.05)  # Longueur par défaut # 50.0 puis 0.5
+        self.length.set(0.005)  # Longueur par défaut
 
         # Variable temps (en secondes)
         self.time = 0
@@ -138,7 +138,7 @@ class RobotSimulator:
 
             omega = alpha * self.dt  # Vitesse angulaire
             temp_angle += omega * self.dt
-            temp_angle %= 150  # Normalisation de l'angle dans la plage 0-150 degrés
+            temp_angle %= 360  # Normalisation de l'angle dans la plage 0-360 degrés
 
             error_sum += abs(error)
 
@@ -175,7 +175,7 @@ class RobotSimulator:
         self.previous_error = error
 
         # Calcul de l'accélération angulaire (α) due à la force PID
-        L = length / 2  # Distance du pivot au centre de masse
+        L = self.length.get() / 2  # Distance du pivot au centre de masse
         alpha = (F * L) / I
 
         # Mise à jour de l'angle du robot
@@ -183,7 +183,7 @@ class RobotSimulator:
         new_angle = self.angle.get() + omega * self.dt
 
         # Normalisation de l'angle dans la plage 0-360 degrés
-        new_angle %= 150
+        new_angle %= 360
 
         # Calcul de la tension des moteurs (V)
         voltage = (1 / self.k_v) * omega
@@ -204,7 +204,9 @@ class RobotSimulator:
         print(f"--- Moment d'inertie : {I} ---")
         print(f"--- Inertie en x: {self.inertia_x} ---")
         print(f"--- Intégrale: {self.integral} ---")
-        print(f"--- Dérivée: {derivative} ---\n")
+        print(f"--- Dérivée: {derivative} ---")
+        print(f"--- Erreur: {error} ---")
+        print(f"--- coefficient Kp: {self.Kp}, Ki: {self.Ki}, Kd: {self.Kd} ---\n")
 
         # Mise à jour du temps
         self.time += self.dt
