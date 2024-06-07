@@ -1,5 +1,6 @@
 import tkinter as tk
 import math
+import numpy as np
 
 class RobotSimulator:
     def __init__(self, root):
@@ -18,11 +19,11 @@ class RobotSimulator:
         self.x_position.set(760)  # Position initiale au centre de l'écran
 
         self.mass = tk.DoubleVar()
-        self.mass.set(10.0)  # Masse par défaut
+        self.mass.set(0.2)  # Masse par défaut # 10.0 puis 2.0
         self.height = tk.DoubleVar()
-        self.height.set(10.0)  # Hauteur par défaut
+        self.height.set(0.1)  # Hauteur par défaut # 10.0 puis 1.0
         self.length = tk.DoubleVar()
-        self.length.set(5.0)  # Longueur par défaut
+        self.length.set(0.05)  # Longueur par défaut # 50.0 puis 0.5
 
         # Variable temps (en secondes)
         self.time = 0
@@ -97,10 +98,51 @@ class RobotSimulator:
     def start_simulation(self):
         if not self.running:
             self.running = True
+            self.calibrate_pid()  # Calibrate PID before starting simulation
             self.update_robot()
 
     def stop_simulation(self):
         self.running = False
+
+    def calibrate_pid(self):
+        best_params = None
+        best_error = float('inf')
+
+        for Kp in np.linspace(0.1, 5.0, 10):
+            for Ki in np.linspace(0.0, 1.0, 10):
+                for Kd in np.linspace(0.0, 1.0, 10):
+                    error = self.simulate_pid(Kp, Ki, Kd)
+                    if error < best_error:
+                        best_error = error
+                        best_params = (Kp, Ki, Kd)
+
+        self.Kp, self.Ki, self.Kd = best_params
+        print(f"Calibrated PID parameters: Kp={self.Kp}, Ki={self.Ki}, Kd={self.Kd}")
+
+    def simulate_pid(self, Kp, Ki, Kd):
+        error_sum = 0
+        temp_angle = 90
+        temp_integral = 0
+        temp_previous_error = 0
+
+        for _ in range(100):
+            error = 90 - temp_angle
+            temp_integral += error * self.dt
+            derivative = (error - temp_previous_error) / self.dt
+            F = Kp * error + Ki * temp_integral + Kd * derivative
+            temp_previous_error = error
+
+            L = self.length.get() / 2  # Distance du pivot au centre de masse
+            I = (1/12) * self.mass.get() * (self.height.get()**2 + self.length.get()**2)
+            alpha = (F * L) / I
+
+            omega = alpha * self.dt  # Vitesse angulaire
+            temp_angle += omega * self.dt
+            temp_angle %= 150  # Normalisation de l'angle dans la plage 0-150 degrés
+
+            error_sum += abs(error)
+
+        return error_sum
 
     def update_robot(self):
         if not self.running:
@@ -138,7 +180,10 @@ class RobotSimulator:
 
         # Mise à jour de l'angle du robot
         omega = alpha * self.dt  # Vitesse angulaire
-        new_angle = self.angle.get() + math.degrees(omega * self.dt)
+        new_angle = self.angle.get() + omega * self.dt
+
+        # Normalisation de l'angle dans la plage 0-360 degrés
+        new_angle %= 150
 
         # Calcul de la tension des moteurs (V)
         voltage = (1 / self.k_v) * omega
