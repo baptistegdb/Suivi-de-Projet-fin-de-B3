@@ -109,8 +109,10 @@ class RobotSimulator:
         best_error = float('inf')
 
         for Kp in np.linspace(0.1, 5.0, 10):
-            for Ki in np.linspace(0.0, 1.0, 10):
-                for Kd in np.linspace(0.0, 1.0, 10):
+            for Ti in np.linspace(0.01, 1.0, 10):  # Adjusted range for Ti
+                for Td in np.linspace(0.01, 0.1, 10):  # Adjusted range for Td
+                    Ki = Kp / Ti
+                    Kd = Kp * Td
                     error = self.simulate_pid(Kp, Ki, Kd)
                     if error < best_error:
                         best_error = error
@@ -118,6 +120,7 @@ class RobotSimulator:
 
         self.Kp, self.Ki, self.Kd = best_params
         print(f"Calibrated PID parameters: Kp={self.Kp}, Ki={self.Ki}, Kd={self.Kd}")
+
 
     def simulate_pid(self, Kp, Ki, Kd):
         error_sum = 0
