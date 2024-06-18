@@ -1,6 +1,7 @@
 import tkinter as tk
 import math
 import numpy as np
+import matplotlib.pyplot as plt
 
 class RobotSimulator:
     def __init__(self, root):
@@ -49,6 +50,17 @@ class RobotSimulator:
 
         # Flag pour suivre l'état de la simulation
         self.running = False
+
+        # Listes pour stocker les valeurs pour les graphiques
+        self.time_data = []
+        self.angle_data = []
+        self.F_data = []
+        self.P_data = []
+        self.I_data = []
+        self.D_data = []
+
+        # Temps durant lequel l'angle est stable
+        self.stable_time = 0
 
         # Création des widgets
         self.create_widgets()
@@ -103,16 +115,15 @@ class RobotSimulator:
 
     def stop_simulation(self):
         self.running = False
+        self.plot_pid()
 
     def calibrate_pid(self):
         best_params = None
         best_error = float('inf')
 
         for Kp in np.linspace(0.1, 5.0, 10):
-            for Ti in np.linspace(0.01, 1.0, 10):  # Adjusted range for Ti
-                for Td in np.linspace(0.01, 0.1, 10):  # Adjusted range for Td
-                    Ki = Kp / Ti
-                    Kd = Kp * Td
+            for Ki in np.linspace(0.0, 1.0, 10):
+                for Kd in np.linspace(0.0, 1.0, 10):
                     error = self.simulate_pid(Kp, Ki, Kd)
                     if error < best_error:
                         best_error = error
@@ -120,7 +131,6 @@ class RobotSimulator:
 
         self.Kp, self.Ki, self.Kd = best_params
         print(f"Calibrated PID parameters: Kp={self.Kp}, Ki={self.Ki}, Kd={self.Kd}")
-
 
     def simulate_pid(self, Kp, Ki, Kd):
         error_sum = 0
@@ -194,6 +204,14 @@ class RobotSimulator:
         # Intégrer la commande PID pour ajuster l'angle du robot
         self.angle.set(new_angle)
 
+        # Enregistrement des données pour les graphiques
+        self.time_data.append(self.time)
+        self.angle_data.append(self.angle.get())
+        self.F_data.append(F)
+        self.P_data.append(self.Kp * error)
+        self.I_data.append(self.Ki * self.integral)
+        self.D_data.append(self.Kd * derivative)
+
         # Affichage des valeurs dans la console
         print(f"--- Temps: {self.time} ---")
         print(f"--- Angle: {self.angle.get()} ---")
@@ -211,11 +229,47 @@ class RobotSimulator:
         print(f"--- Erreur: {error} ---")
         print(f"--- coefficient Kp: {self.Kp}, Ki: {self.Ki}, Kd: {self.Kd} ---\n")
 
+        # Vérification de la stabilisation
+        if 85 <= new_angle <= 95:
+            self.stable_time += self.dt
+        else:
+            self.stable_time = 0
+
+        if self.stable_time >= 5:
+            self.stop_simulation()
+
         # Mise à jour du temps
         self.time += self.dt
 
         # Rappeler la méthode update_robot après un certain délai (pour simuler le passage du temps)
         self.root.after(int(self.dt * 1000), self.update_robot)
+
+    def plot_pid(self):
+        plt.figure(figsize=(12, 8))
+
+        plt.subplot(4, 1, 1)
+        plt.plot(self.time_data, self.angle_data, label='Angle')
+        plt.ylabel('Angle (°)')
+        plt.legend()
+
+        plt.subplot(4, 1, 2)
+        plt.plot(self.time_data, self.P_data, label='P')
+        plt.ylabel('P')
+        plt.legend()
+
+        plt.subplot(4, 1, 3)
+        plt.plot(self.time_data, self.I_data, label='I')
+        plt.ylabel('I')
+        plt.legend()
+
+        plt.subplot(4, 1, 4)
+        plt.plot(self.time_data, self.D_data, label='D')
+        plt.ylabel('D')
+        plt.xlabel('Temps (s)')
+        plt.legend()
+
+        plt.tight_layout()
+        plt.show()
 
 if __name__ == "__main__":
     root = tk.Tk()
