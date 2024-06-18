@@ -12,7 +12,13 @@ class RobotSimulator:
         self.canvas = tk.Canvas(root, width=1520, height=938, bg="white")
         self.canvas.pack(side=tk.LEFT)
 
-        # Variables pour les paramètres
+        # Initialisation des variables
+        self.init_variables()
+
+        # Création des widgets
+        self.create_widgets()
+
+    def init_variables(self):
         self.angle = tk.DoubleVar()
         self.angle.set(90)  # Angle initial de 90 degrés
 
@@ -21,37 +27,32 @@ class RobotSimulator:
 
         self.mass = tk.DoubleVar()
         self.mass.set(0.2)  # Masse par défaut
+
         self.height = tk.DoubleVar()
         self.height.set(0.01)  # Hauteur par défaut
+
         self.length = tk.DoubleVar()
         self.length.set(0.005)  # Longueur par défaut
 
-        # Variable temps (en secondes)
+        self.inertia_x = tk.DoubleVar()
+        self.inertia_x.set(0.1)  # Valeur par défaut de l'inertie en x
+
         self.time = 0
         self.dt = 0.1  # Intervalle de temps en secondes
 
-        # Gravité
         self.g = 9.81  # Accélération due à la gravité (m/s^2)
 
-        # Inertie en x
-        self.inertia_x = 0.1  # Valeur par défaut de l'inertie en x
-
-        # PID constants
         self.Kp = 1.0
         self.Ki = 0.1
         self.Kd = 0.05
 
-        # PID variables
         self.previous_error = 0
         self.integral = 0
 
-        # Constante du moteur
         self.k_v = 1.0
 
-        # Flag pour suivre l'état de la simulation
         self.running = False
 
-        # Listes pour stocker les valeurs pour les graphiques
         self.time_data = []
         self.angle_data = []
         self.F_data = []
@@ -59,11 +60,11 @@ class RobotSimulator:
         self.I_data = []
         self.D_data = []
 
-        # Temps durant lequel l'angle est stable
         self.stable_time = 0
 
-        # Création des widgets
-        self.create_widgets()
+        self.integral_limit = 10  # Limite pour l'accumulation intégrale
+        self.derivative_window = 5  # Fenêtre pour lisser la dérivée
+        self.error_history = []  # Historique des erreurs pour lisser la dérivée
 
     def create_widgets(self):
         # Frame pour les paramètres
@@ -71,51 +72,67 @@ class RobotSimulator:
         params_frame.pack(side=tk.RIGHT, padx=20)
 
         # Widgets pour les paramètres
-        angle_label = tk.Label(params_frame, text="Angle de rotation (°):")
-        angle_label.grid(row=0, column=0, pady=5)
-        
-        self.angle_entry = tk.Entry(params_frame, textvariable=self.angle)
-        self.angle_entry.grid(row=0, column=1, pady=5)
+        self.create_param_widgets(params_frame)
 
-        mass_label = tk.Label(params_frame, text="Masse (kg):")
-        mass_label.grid(row=1, column=0, pady=5)
-        
-        self.mass_entry = tk.Entry(params_frame, textvariable=self.mass)
-        self.mass_entry.grid(row=1, column=1, pady=5)
-
-        height_label = tk.Label(params_frame, text="Hauteur (m):")
-        height_label.grid(row=2, column=0, pady=5)
-        
-        self.height_entry = tk.Entry(params_frame, textvariable=self.height)
-        self.height_entry.grid(row=2, column=1, pady=5)
-
-        length_label = tk.Label(params_frame, text="Longueur (m):")
-        length_label.grid(row=3, column=0, pady=5)
-        
-        self.length_entry = tk.Entry(params_frame, textvariable=self.length)
-        self.length_entry.grid(row=3, column=1, pady=5)
-
-        inertia_label = tk.Label(params_frame, text="Inertie en x:")
-        inertia_label.grid(row=4, column=0, pady=5)
-        
-        self.inertia_entry = tk.Entry(params_frame, textvariable=tk.DoubleVar(value=self.inertia_x))
-        self.inertia_entry.grid(row=4, column=1, pady=5)
-
-        self.update_button = tk.Button(params_frame, text="Mettre à jour", command=self.start_simulation)
+        self.update_button = tk.Button(params_frame, text="Démarrer", command=self.start_simulation)
         self.update_button.grid(row=5, columnspan=2, pady=10)
 
         self.stop_button = tk.Button(params_frame, text="Arrêter", command=self.stop_simulation)
         self.stop_button.grid(row=6, columnspan=2, pady=10)
 
+        self.reset_button = tk.Button(params_frame, text="Réinitialiser", command=self.reset_simulation)
+        self.reset_button.grid(row=7, columnspan=2, pady=10)
+
+    def create_param_widgets(self, frame):
+        angle_label = tk.Label(frame, text="Angle de rotation (°):")
+        angle_label.grid(row=0, column=0, pady=5)
+        self.angle_entry = tk.Entry(frame, textvariable=self.angle)
+        self.angle_entry.grid(row=0, column=1, pady=5)
+
+        mass_label = tk.Label(frame, text="Masse (kg):")
+        mass_label.grid(row=1, column=0, pady=5)
+        self.mass_entry = tk.Entry(frame, textvariable=self.mass)
+        self.mass_entry.grid(row=1, column=1, pady=5)
+
+        height_label = tk.Label(frame, text="Hauteur (m):")
+        height_label.grid(row=2, column=0, pady=5)
+        self.height_entry = tk.Entry(frame, textvariable=self.height)
+        self.height_entry.grid(row=2, column=1, pady=5)
+
+        length_label = tk.Label(frame, text="Longueur (m):")
+        length_label.grid(row=3, column=0, pady=5)
+        self.length_entry = tk.Entry(frame, textvariable=self.length)
+        self.length_entry.grid(row=3, column=1, pady=5)
+
+        inertia_label = tk.Label(frame, text="Inertie en x:")
+        inertia_label.grid(row=4, column=0, pady=5)
+        self.inertia_entry = tk.Entry(frame, textvariable=self.inertia_x)
+        self.inertia_entry.grid(row=4, column=1, pady=5)
+
     def start_simulation(self):
         if not self.running:
             self.running = True
-            self.calibrate_pid()  # Calibrate PID before starting simulation
+            self.calibrate_pid()
             self.update_robot()
 
     def stop_simulation(self):
         self.running = False
         self.plot_pid()
+
+    def reset_simulation(self):
+        self.running = False
+        self.init_variables()
+        self.canvas.delete("all")
+        self.angle_entry.delete(0, tk.END)
+        self.mass_entry.delete(0, tk.END)
+        self.height_entry.delete(0, tk.END)
+        self.length_entry.delete(0, tk.END)
+        self.inertia_entry.delete(0, tk.END)
+        self.angle_entry.insert(0, "90")
+        self.mass_entry.insert(0, "0.2")
+        self.height_entry.insert(0, "0.01")
+        self.length_entry.insert(0, "0.005")
+        self.inertia_entry.insert(0, "0.1")
 
     def calibrate_pid(self):
         best_params = None
@@ -145,13 +162,13 @@ class RobotSimulator:
             F = Kp * error + Ki * temp_integral + Kd * derivative
             temp_previous_error = error
 
-            L = self.length.get() / 2  # Distance du pivot au centre de masse
+            L = self.length.get() / 2
             I = (1/12) * self.mass.get() * (self.height.get()**2 + self.length.get()**2)
             alpha = (F * L) / I
 
-            omega = alpha * self.dt  # Vitesse angulaire
+            omega = alpha * self.dt
             temp_angle += omega * self.dt
-            temp_angle %= 360  # Normalisation de l'angle dans la plage 0-360 degrés
+            temp_angle %= 360
 
             error_sum += abs(error)
 
@@ -163,9 +180,9 @@ class RobotSimulator:
 
         self.canvas.delete("all")
         x = self.x_position.get()
-        y = 500  # Position fixe en y pour la base du robot
+        y = 500
         angle = math.radians(self.angle.get())
-        length = 100  # Longueur du robot pour la représentation graphique
+        length = 100
 
         x_end = x + length * math.cos(angle)
         y_end = y - length * math.sin(angle)
@@ -182,48 +199,53 @@ class RobotSimulator:
 
         # PID controller
         error = 90 - self.angle.get()
+
+        # Limiter l'intégrale
         self.integral += error * self.dt
-        derivative = (error - self.previous_error) / self.dt
-        F = self.Kp * error + self.Ki * self.integral + self.Kd * derivative
-        self.previous_error = error
+        self.integral = max(min(self.integral, self.integral_limit), -self.integral_limit)
 
-        # Calcul de l'accélération angulaire (α) due à la force PID
-        L = self.length.get() / 2  # Distance du pivot au centre de masse
-        alpha = (F * L) / I
+        # Calculer la dérivée avec lissage
+        self.error_history.append(error)
+        if len(self.error_history) > self.derivative_window:
+            self.error_history.pop(0)
+        if len(self.error_history) > 1:
+            derivative = (self.error_history[-1] - self.error_history[-2]) / self.dt
+        else:
+            derivative = 0.0
 
-        # Mise à jour de l'angle du robot
-        omega = alpha * self.dt  # Vitesse angulaire
-        new_angle = self.angle.get() + omega * self.dt
+        P = self.Kp * error
+        I_term = self.Ki * self.integral
+        D = self.Kd * derivative
+        F = P + I_term + D
 
-        # Normalisation de l'angle dans la plage 0-360 degrés
-        new_angle %= 360
+        L = l / 2  # Distance du centre de masse au point de pivot
+        alpha = (F * L) / I  # Accélération angulaire
 
-        # Calcul de la tension des moteurs (V)
-        voltage = (1 / self.k_v) * omega
-
-        # Intégrer la commande PID pour ajuster l'angle du robot
-        self.angle.set(new_angle)
-
-        # Enregistrement des données pour les graphiques
+        # Enregistrer les données pour affichage
         self.time_data.append(self.time)
         self.angle_data.append(self.angle.get())
         self.F_data.append(F)
-        self.P_data.append(self.Kp * error)
-        self.I_data.append(self.Ki * self.integral)
-        self.D_data.append(self.Kd * derivative)
+        self.P_data.append(P)
+        self.I_data.append(I_term)
+        self.D_data.append(D)
 
-        # Affichage des valeurs dans la console
-        print(f"--- Temps: {self.time} ---")
+        # Mettre à jour l'angle
+        omega = alpha * self.dt
+        new_angle = self.angle.get() + omega * self.dt
+        self.angle.set(new_angle % 360)
+
+        # Afficher les informations PID
+        print(f"--- Time: {self.time} ---")
         print(f"--- Angle: {self.angle.get()} ---")
         print(f"--- Force PID: {F} ---")
-        print(f"--- Proportionnelle (P): {self.Kp * error} ---")
-        print(f"--- Intégrale (I): {self.Ki * self.integral} ---")
-        print(f"--- Dérivée (D): {self.Kd * derivative} ---")
+        print(f"--- Proportionnelle (P): {P} ---")
+        print(f"--- Intégrale (I): {I_term} ---")
+        print(f"--- Dérivée (D): {D} ---")
         print(f"--- Accélération angulaire: {alpha} ---")
         print(f"--- Nouvel angle: {new_angle} ---")
-        print(f"--- Tension des moteurs: {voltage} ---")
+        print(f"--- Tension des moteurs: {F} ---")
         print(f"--- Moment d'inertie : {I} ---")
-        print(f"--- Inertie en x: {self.inertia_x} ---")
+        print(f"--- Inertie en x: {self.inertia_x.get()} ---")
         print(f"--- Intégrale: {self.integral} ---")
         print(f"--- Dérivée: {derivative} ---")
         print(f"--- Erreur: {error} ---")
